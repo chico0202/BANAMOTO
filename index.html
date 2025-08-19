@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BanaMoto - تطبيق التاكسي</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #2c3e50, #4a69bd);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #d63031;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header h1 {
+            font-size: 36px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+        }
+        
+        .map-container {
+            flex: 7;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+        
+        .controls {
+            flex: 3;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #d63031;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .button:hover {
+            background: #ff7675;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .button:active {
+            transform: translateY(0);
+        }
+        
+        .button.secondary {
+            background: #2d3436;
+        }
+        
+        .button.secondary:hover {
+            background: #636e72;
+        }
+        
+        .info-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            margin-top: 10px;
+        }
+        
+        .info-box h3 {
+            color: #d63031;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px dashed #dee2e6;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #2d3436;
+        }
+        
+        .info-value {
+            color: #d63031;
+            font-weight: bold;
+        }
+        
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .status.waiting {
+            background: #ffeaa7;
+            color: #d63031;
+        }
+        
+        .status.active {
+            background: #55efc4;
+            color: #00b894;
+        }
+        
+        .footer {
+            background: #2d3436;
+            color: white;
+            text-align: center;
+            padding: 15px;
+            font-size: 14px;
+            margin-top: auto;
+        }
+        
+        .route-line {
+            stroke: #d63031;
+            stroke-width: 5;
+            stroke-opacity: 0.7;
+            fill: none;
+        }
+        
+        .location-marker {
+            filter: hue-rotate(120deg);
+        }
+        
+        .search-container {
+            margin-bottom: 15px;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .search-box:focus {
+            border-color: #d63031;
+            outline: none;
+        }
+        
+        .geocoder-control-input {
+            text-align: right;
+            direction: rtl;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BANAMOTO</h1>
+    </div>
+    
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <div class="controls">
+            <div class="search-container">
+                <input type="text" id="searchInput" class="search-box" placeholder="ابحث عن موقع...">
+            </div>
+            
+            <button id="locateBtn" class="button">📍 تحديد موقعي</button>
+            <button id="startBtn" class="button">🚕 بدء الرحلة</button>
+            <button id="endBtn" class="button secondary">🛑 إنهاء الرحلة</button>
+            
+            <div id="status" class="status waiting">في انتظار تحديد الموقع</div>
+            
+            <div class="info-box">
+                <h3>معلومات الرحلة</h3>
+                <div class="info-item">
+                    <span class="info-label">المسافة:</span>
+                    <span id="distance" class="info-value">0 كم</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">السعر:</span>
+                    <span id="price" class="info-value">0 د.ت</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">سعر الكيلومتر:</span>
+                    <span class="info-value">0.7 د.ت</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>© 2023 BanaMoto - جميع الحقوق محفوظة</p>
+    </div>
+
+    <script>
+        // Initialize the map centered on Tunisia
+        var map = L.map('map').setView([36.8065, 10.1815], 13);
+        
+        // Add the tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Add geocoder for address search
+        var geocoder = L.Control.Geocoder.nominatim();
+        var marker;
+        
+        // Setup search functionality
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                var query = this.value;
+                if (query.length > 2) {
+                    geocoder.geocode(query, function(results) {
+                        if (results.length > 0) {
+                            var result = results[0];
+                            map.setView(result.center, 16);
+                            
+                            if (marker) {
+                                map.removeLayer(marker);
+                            }
+                            
+                            marker = L.marker(result.center)
+                                .addTo(map)
+                                .bindPopup(result.name || query)
+                                .openPopup();
+                        }
+                    });
+                }
+            }
+        });
+
+        // Variables for markers and route
+        var userMarker, destinationMarker, routeLine;
+        var startLatLng = null;
+        var endLatLng = null;
+        var pricePerKm = 0.7; // Updated price per kilometer in dinar
+        var isSelectingDestination = false;
+
+        // Update status message
+        function updateStatus(message, type) {
+            var statusElement = document.getElementById("status");
+            statusElement.textContent = message;
+            statusElement.className = "status " + type;
+        }
+
+        // Format distance for display
+        function formatDistance(meters) {
+            if (meters < 1000) {
+                return meters.toFixed(0) + ' م';
+            } else {
+                return (meters / 1000).toFixed(2) + ' كم';
+            }
+        }
+
+        // Calculate route using OSRM API (follows roads)
+        function calculateRoute(start, end, callback) {
+            var url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        var route = data.routes[0];
+                        callback(route.distance, route.geometry);
+                    } else {
+                        alert("⚠️ تعذر العثور على مسار. حاول تحديد وجهة أخرى.");
+                        updateStatus("تعذر العثور على مسار", "waiting");
+                    }
+                })
+                .catch(err => {
+                    console.error('Error fetching route:', err);
+                    alert("⚠️ حدث خطأ في حساب المسار. حاول مرة أخرى.");
+                    updateStatus("خطأ في حساب المسار", "waiting");
+                });
+        }
+
+        // Draw route on map
+        function drawRoute(geometry) {
+            // Remove existing route line if any
+            if (routeLine) {
+                map.removeLayer(routeLine);
+            }
+            
+            // Convert geometry to LatLng objects
+            var coordinates = geometry.coordinates;
+            var latlngs = coordinates.map(coord => L.latLng(coord[1], coord[0]));
+            
+            // Draw the route
+            routeLine = L.polyline(latlngs, {
+                color: '#d63031',
+                weight: 5,
+                opacity: 0.7,
+                lineJoin: 'round'
+            }).addTo(map);
+            
+            // Fit map to show the entire route
+            map.fitBounds(routeLine.getBounds());
+        }
+
+        // Locate button
+        document.getElementById("locateBtn").onclick = function() {
+            updateStatus("جاري تحديد موقعك...", "waiting");
+            map.locate({setView: true, maxZoom: 16});
+        };
+
+        // Handle location found
+        map.on('locationfound', function(e) {
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            userMarker = L.marker(e.latlng, {
+                icon: L.icon({
+                    iconUrl: "https://cdn-icons-png.flaticon.com/512/447/447031.png",
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32],
+                    className: 'location-marker'
+                })
+            }).addTo(map).bindPopup("موقعك الحالي").openPopup();
+            
+            startLatLng = e.latlng;
+            updateStatus("تم تحديد موقعك بنجاح", "active");
+        });
+
+        // Handle location error
+        map.on('locationerror', function(e) {
+            updateStatus("فشل في تحديد الموقع. تأكد من تفعيل GPS", "waiting");
+            alert("تعذر تحديد موقعك. يرجى التأكد من تفعيل خدمة تحديد الموقع (GPS) على جهازك.");
+        });
+
+        // Start trip button
+        document.getElementById("startBtn").onclick = function() {
+            if (!startLatLng) {
+                alert("⚠️ يرجى الضغط على 'تحديد موقعي' أولاً لتحديد موقعك");
+                updateStatus("يجب تحديد موقعك أولاً", "waiting");
+                return;
+            }
+            
+            updateStatus("اختر وجهتك بالنقر على الخريطة", "active");
+            isSelectingDestination = true;
+            
+            // Remove any existing destination marker and route
+            if (destinationMarker) {
+                map.removeLayer(destinationMarker);
+                destinationMarker = null;
+            }
+            if (routeLine) {
+                map.removeLayer(routeLine);
+                routeLine = null;
+            }
+            
+            // Reset info display
+            document.getElementById("distance").textContent = "0 كم";
+            document.getElementById("price").textContent = "0 د.ت";
+            
+            // Change cursor to indicate selection mode
+            map.getContainer().style.cursor = 'crosshair';
+            
+            // Create a one-time click event to select destination
+            map.once('click', function(e) {
+                isSelectingDestination = false;
+                map.getContainer().style.cursor = '';
+                endLatLng = e.latlng;
+                
+                // Add destination marker
+                destinationMarker = L.marker(e.latlng, {
+                    icon: L.icon({
+                        iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32]
+                    })
+                }).addTo(map).bindPopup("الوجهة").openPopup();
+                
+                // Calculate route using OSRM (follows roads)
+                updateStatus("جاري حساب المسار...", "waiting");
+                calculateRoute(startLatLng, endLatLng, function(distance, geometry) {
+                    // Draw route
+                    drawRoute(geometry);
+                    
+                    // Calculate price
+                    const price = (distance / 1000) * pricePerKm;
+                    
+                    // Update info display
+                    document.getElementById("distance").textContent = formatDistance(distance);
+                    document.getElementById("price").textContent = price.toFixed(2) + " د.ت";
+                    
+                    updateStatus("تم تحديد المسار بنجاح", "active");
+                });
+            });
+        };
+
+        // End trip button
+        document.getElementById("endBtn").onclick = function() {
+            if (userMarker) map.removeLayer(userMarker);
+            if (destinationMarker) map.removeLayer(destinationMarker);
+            if (routeLine) map.removeLayer(routeLine);
+            
+            document.getElementById("distance").textContent = "0 كم";
+            document.getElementById("price").textContent = "0 د.ت";
+            startLatLng = null; 
+            endLatLng = null;
+            isSelectingDestination = false;
+            map.getContainer().style.cursor = '';
+            updateStatus("تم إنهاء الرحلة", "waiting");
+        };
+    </script>
+</body>
+</html>
